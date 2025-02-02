@@ -38,6 +38,8 @@ class CRNN(nn.Module):
         self.rnn2 = nn.LSTM(2 * rnn_hidden, rnn_hidden, bidirectional=True)
 
         self.dense = nn.Linear(2 * rnn_hidden, num_class)
+        self.log_softmax = nn.LogSoftmax(dim=2)  # log-softmax 추가
+
 
     def forward(self, images):
         # shape of images: (batch, channel, height, width)
@@ -46,13 +48,18 @@ class CRNN(nn.Module):
         batch, channel, height, width = conv.size()
 
         conv = conv.view(batch, channel * height, width)
-        print("conv: ", conv.shape)
+        
         conv = conv.permute(2, 0, 1)  # (width, batch, feature)
-        print("conv2: ", conv.shape)
+        
         seq = self.map_to_seq(conv)
-        print("seq: ", seq.shape)
+        
         recurrent, _ = self.rnn1(seq)
+        
         recurrent, _ = self.rnn2(recurrent)
+        
 
         output = self.dense(recurrent)
+        
+        output = self.log_softmax(output)  # log-softmax 적용
+
         return output  # shape: (seq_len, batch, num_class)

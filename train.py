@@ -28,13 +28,13 @@ class CombinedModel(nn.Module):
         # VAE forward pass
         h, recon, mu, log_var, detection_output = self.vae(webtoon_image)
 
-        print("h: ", h.shape)
+        
 
         # CRNN CNN pass (text image features)
         crnn_features = self.crnn_cnn(text_image)  # CNN 계층에서 특징 추출
-        print("crnn_features: ", crnn_features.shape)
+        
         crnn_features = crnn_features.view(crnn_features.size(0), -1)  # Flatten
-        print("crnn_features: ", crnn_features.shape)
+        
 
         return recon, mu, log_var, detection_output, h, crnn_features
     
@@ -119,15 +119,21 @@ def train_model(num_epochs):
             # 크기 출력하여 디버깅
             print("batch_size: ", batch_size)
             print(f"text_output shape: {text_output.shape}")  # [seq_length, batch_size, num_classes]
+            print("target: ", targets)
             print(f"targets shape: {targets.shape}")
+            print("input_lengths: ", input_lengths)
             print(f"input_lengths shape: {input_lengths.shape}")
+            print("target_lengths: ", target_lengths)
             print(f"target_lengths shape: {target_lengths.shape}")
             ctc_loss = ctc_loss_fn(text_output, targets, input_lengths, target_lengths)
 
             
             fusion_loss = nn.functional.mse_loss(h, crnn_features)
-
-            total_batch_loss = vae_loss + det_loss + ctc_loss + fusion_loss
+            lambda_vae = 1
+            lambda_det = 1
+            lambda_ctc = 0.1
+            lambda_fus = 0.001
+            total_batch_loss = (lambda_vae * vae_loss) + (lambda_det * det_loss) + (lambda_ctc * ctc_loss) + (lambda_fus * fusion_loss)
             print("vae loss: ", vae_loss)
             print("det_loss: ", det_loss)
             print("ctc_loss: ", ctc_loss)
