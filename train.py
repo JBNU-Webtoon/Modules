@@ -28,13 +28,13 @@ class CombinedModel(nn.Module):
         # VAE forward pass
         h, recon, mu, log_var, detection_output = self.vae(webtoon_image)
 
-        
+        print("h: ", h.shape)
 
         # CRNN CNN pass (text image features)
         crnn_features = self.crnn_cnn(text_image)  # CNN 계층에서 특징 추출
-        
+        print("crnn_features: ", crnn_features.shape)
         crnn_features = crnn_features.view(crnn_features.size(0), -1)  # Flatten
-        
+        print("crnn_features: ", crnn_features.shape)
 
         return recon, mu, log_var, detection_output, h, crnn_features
     
@@ -75,6 +75,11 @@ vae_loader = DataLoader(vae_dataset, batch_size=8, shuffle=True, num_workers=4)
 
 crnn_dataset = Synth90kDataset(root_dir="./data", mode="train")
 crnn_loader = DataLoader(crnn_dataset, batch_size=8, shuffle=True, num_workers=4, collate_fn=synth90k_collate_fn)
+
+def loss_norm(e):
+    n = int(torch.log10(e))
+    result = e / 10**(n+1)
+    return result
 
 # Training loop
 def train_model(num_epochs):
@@ -118,6 +123,24 @@ def train_model(num_epochs):
             input_lengths = torch.full((batch_size,), sequence_length, dtype=torch.long).to(text_output.device)
             # 크기 출력하여 디버깅
             print("batch_size: ", batch_size)
+
+            # text_output에서 각 타임스텝에 대해 가장 높은 확률을 가진 인덱스 추출
+            predicted_indices = torch.argmax(text_output, dim=2)  # (24, 8) 크기
+
+
+            # 예측된 인덱스 시퀀스
+            predicted_texts = []
+            start_idx = 0
+            for i in range(len(target_lengths)):
+                end_idx = start_idx + target_lengths[i]
+                predicted_text = predicted_indices[:target_lengths[i], i]  # i번째 배치에 대한 예측 텍스트
+                predicted_texts.append(predicted_text)
+                start_idx = end_idx
+
+            # 각 배치에 대한 예측된 텍스트 출력
+            for i, pred in enumerate(predicted_texts):
+                print(f"Batch {i + 1} Predicted Text: {pred}")
+
             print(f"text_output shape: {text_output.shape}")  # [seq_length, batch_size, num_classes]
             print("target: ", targets)
             print(f"targets shape: {targets.shape}")
@@ -129,15 +152,15 @@ def train_model(num_epochs):
 
             
             fusion_loss = nn.functional.mse_loss(h, crnn_features)
-            lambda_vae = 1
-            lambda_det = 1
-            lambda_ctc = 0.1
-            lambda_fus = 0.001
-            total_batch_loss = (lambda_vae * vae_loss) + (lambda_det * det_loss) + (lambda_ctc * ctc_loss) + (lambda_fus * fusion_loss)
-            print("vae loss: ", vae_loss)
-            print("det_loss: ", det_loss)
-            print("ctc_loss: ", ctc_loss)
-            print("fusion_loss: ", fusion_loss)
+            # lambda_vae = 1
+            # lambda_det = 1
+            # lambda_ctc = 0.1
+            # lambda_fus = 0.001
+            total_batch_loss = loss_norm(vae_loss) + loss_norm(det_loss) + loss_norm(ctc_loss) + loss_norm(fusion_loss)
+            print("vae loss: ", vae_loss, loss_norm(vae_loss))
+            print("det_loss: ", det_loss, loss_norm(det_loss))
+            print("ctc_loss: ", ctc_loss, loss_norm(ctc_loss))
+            print("fusion_loss: ", fusion_loss, loss_norm(fusion_loss))
             print("total_batch_loss: ", total_batch_loss)
             # Backward pass
             total_batch_loss.backward()
