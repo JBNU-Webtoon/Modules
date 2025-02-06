@@ -11,7 +11,7 @@ import numpy as np
 
 
 class Synth90kDataset(Dataset):
-    with open('korean_dict.txt', 'r', encoding='utf-8') as f:
+    with open('/home/jbnu/Final/Modules2/data/korean_dict.txt', 'r', encoding='utf-8') as f:
         korean_chars = ''.join(line.strip() for line in f)
 
     CHARS = korean_chars
